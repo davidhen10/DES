@@ -4,8 +4,6 @@
 #include <cmath>
 using namespace std;
 
-string round_keys[16];
-string pt;
 
 int IP[64] = {
 			   58, 50, 42, 34, 26, 18, 10, 2,
@@ -29,7 +27,6 @@ int FP[64] = {
 			   33, 1, 41, 9, 49, 17, 57, 25
 }; 
 
-// Expansion Table
 int E[48] = {
 			   32, 1, 2, 3, 4, 5,
 			   4, 5, 6, 7, 8, 9,
@@ -84,7 +81,6 @@ int S_BOX[8][4][16] = {{
 	2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11
 }}; 
 
-// Permutation Table (P)
 int P[32] = {
 	16, 7, 20, 21, 29, 12, 28, 17,
 	1, 15, 23, 26, 5, 18, 31, 10,
@@ -92,7 +88,6 @@ int P[32] = {
 	19, 13, 30, 6, 22, 11, 4, 25
 }; 
 
-// Permuted Choice 1 (PC1) Table
 int PC1[56] = {
 			   57, 49, 41, 33, 25, 17, 9,
 			   1, 58, 50, 42, 34, 26, 18,
@@ -104,7 +99,6 @@ int PC1[56] = {
 			   21, 13, 5, 28, 20, 12, 4
 };
 
-// Permuted Choice 2 (PC2) Table
 int PC2[48] = {
 			   14, 17, 11, 24, 1, 5,
 			   3, 28, 15, 6, 21, 10,
@@ -116,6 +110,8 @@ int PC2[48] = {
 			   46, 42, 50, 36, 29, 32
 };
 
+string round_keys[16];
+string plaintext;
 
 string DecToBin(int decimal) {
 	string binary = "";
@@ -162,51 +158,73 @@ string XOR(string a, string b) {
 }
 
 void generate_keys(string key) {
-	string perm_key = "";
-	for (int i = 0; i < 56; i++) {
-		perm_key += key[PC1[i] - 1];
-	}
-
-	string left = perm_key.substr(0, 28);
-	string right = perm_key.substr(28, 28);
-	for (int i = 0; i < 16; i++) {
-		if (i == 0 || i == 1 || i == 8 || i == 15) {
-			left = shiftleft(left);
-			right = shiftleft(right);
-		}
-		else {
-			left = shiftlefttwice(left);
-			right = shiftlefttwice(right);
-		}
-		string combined = left + right;
-		string round_key = "";
-		for (int j = 0; j < 48; j++) {
-			round_key += combined[PC2[j] - 1];
-		}
-		round_keys[i] = round_key;
-	}
-}
-
-string DES() {
-    string perm_text = "";
-    for (int i = 0; i < 64; i++) {
-        perm_text += pt[IP[i] - 1];
+    string perm_key = "";
+    for (int i = 0; i < 56; i++) {
+        perm_key += key[PC1[i] - 1];
     }
 
-    string left = perm_text.substr(0, 32);
-    string right = perm_text.substr(32, 32);
-
-    // Store the original left and right for each round
+    string C = perm_key.substr(0, 28);
+    string D = perm_key.substr(28, 28);
+    
     for (int i = 0; i < 16; i++) {
-        string right_expanded = "";
-        for (int j = 0; j < 48; j++) {
-            right_expanded += right[E[j] - 1];
+        if (i == 0 || i == 1 || i == 8 || i == 15) {
+            C = shiftleft(C);
+            D = shiftleft(D);
+        } else {
+            C = shiftlefttwice(C);
+            D = shiftlefttwice(D);
         }
         
-        string xored = XOR(round_keys[i], right_expanded);
-        string res = "";
+        string combined = C + D;
+        string round_key = "";
         
-        // S-box substitution
+        for (int j = 0; j < 48; j++) {
+            round_key += combined[PC2[j] - 1];
+        }
+        round_keys[i] = round_key;
+    }
+}
+
+string BinToHex(string binary) {
+    stringstream ss;
+    for (size_t i = 0; i < binary.size(); i += 4) {
+        string chunk = binary.substr(i, 4);
+        int decimal = BinToDec(chunk);
+        ss << uppercase << hex << decimal;
+    }
+    return ss.str();
+}
+
+string DES(bool isEncryption) {
+    
+    if (!isEncryption) {
+        reverse(round_keys, round_keys + 16);
+    }
+    
+    string perm_text = "";
+    for (int i = 0; i < 64; i++) {
+        perm_text += plaintext[IP[i] - 1];
+    }
+
+    string L = perm_text.substr(0, 32);
+    string R = perm_text.substr(32, 32);
+
+    // 16 rounds
+    for (int i = 0; i < 16; i++) {
+        cout << "\nRound " << i + 1 << ":\n\n";
+ 
+        string R_expanded = "";
+        for (int j = 0; j < 48; j++) {
+            R_expanded += R[E[j] - 1];
+        }
+        cout << "E(R" << i << ") = " << R_expanded << endl;
+
+        cout << "K" << i+1 << " = " << round_keys[i] << endl;
+
+        string xored = XOR(round_keys[i], R_expanded);
+        cout << "E(R" << i << ") ⊕ K" << i+1 << " = " << xored << endl;
+
+        string res = "";
         for (int j = 0; j < 8; j++) {
             string row1 = string(1, xored[j * 6]) + string(1, xored[j * 6 + 5]);
             string col1 = xored.substr(j * 6 + 1, 4);
@@ -215,41 +233,33 @@ string DES() {
             int val = S_BOX[j][row][col];
             res += DecToBin(val);
         }
-        
-        // P-box permutation
+        cout << "S-box outputs  " << res << endl;
+
         string perm = "";
         for (int j = 0; j < 32; j++) {
             perm += res[P[j] - 1];
         }
-        
-        // XOR with left half
-        string temp = right;  // Store the original right half
-        right = XOR(perm, left);  // New right half
-        left = temp;  // Original right becomes new left
+        cout << "f(R" << i << ", K" << i+1 << ") = " << perm << endl;
+
+        string temp = R;
+        R = XOR(perm, L);
+        L = temp;
+        cout << "L" << i+2 << " = R" << i+1 << " = " << R << endl;
     }
-    
-    // Final swap
-    string combined = right + left;  // Note: right and left are swapped here
-    
-    // Final permutation
+
+    string combined = R + L;
+
     string ciphertext = "";
     for (int i = 0; i < 64; i++) {
         ciphertext += combined[FP[i] - 1];
     }
+
     return ciphertext;
 }
 
-string BinToHex(string binary) {
-    stringstream ss;
-    for (size_t i = 0; i < binary.size(); i += 4) {
-        int val = BinToDec(binary.substr(i, 4));
-        ss << hex << uppercase << val;  // Convert 4-bit segment to hex
-    }
-    return ss.str();
-}
 
 int main() {
-	int choice;
+    int choice;
     string key, text;
     cout << "Enter 1 for Encryption, 2 for Decryption: ";
     cin >> choice;
@@ -258,34 +268,29 @@ int main() {
     cout << "Enter 16-character Hexadecimal Text: ";
     cin >> text;
 
-    // Convert inputs to binary
-	string binary_key = "";
-	for (char c : key) {
-		int val = (c >= '0' && c <= '9') ? c - '0' : c - 'A' + 10;
-		binary_key += DecToBin(val);
-	}
-	string binary_text = "";
-	for (char c : text) {
-		int val = (c >= '0' && c <= '9') ? c - '0' : c - 'A' + 10;
-		binary_text += DecToBin(val);
-	}
-    
+    if (key.length() != 16 || text.length() != 16) {
+        cout << "Error: Both key and text must be exactly 16 hexadecimal characters" << endl;
+        return 1;
+    }
+
+    string binary_key = "";
+    for (char c : key) {
+        int value = (c >= '0' && c <= '9') ? c - '0' : toupper(c) - 'A' + 10;
+        binary_key += DecToBin(value);
+    }
+    string binary_text = "";
+    for (char c : text) {
+        int value = (c >= '0' && c <= '9') ? c - '0' : toupper(c) - 'A' + 10;
+        binary_text += DecToBin(value);
+    }
+
     generate_keys(binary_key);
+    plaintext= binary_text;
 
-	// For decryption, reverse the order of round keys
-	if (choice == 2) {
-		for(int i = 0; i < 8; i++) {
-			string temp = round_keys[i];
-			round_keys[i] = round_keys[15-i];
-			round_keys[15-i] = temp;
-		}
-	}
+    string result = DES(choice == 1);
 
-    pt = binary_text;
-    string result = DES();
-    
-    // Convert result back to hexadecimal
     cout << (choice == 1 ? "Ciphertext: " : "Decrypted Text: ") << BinToHex(result) << endl;
-    
+
     return 0;
 }
+
